@@ -6,7 +6,7 @@ import * as tf from '@tensorflow/tfjs-node';
  * CONFIG — CHANGE THESE
  */
 const MODEL_PATH = './model/blockpairings-model/model.json';  // TFJS saved model
-const INPUT_CSV = './predictions/latea_pairings.csv';         // CSV containing rows to predict
+const INPUT_CSV = './predictions/ontime_a_pmpeak_rtedir.csv';         // CSV containing rows to predict
 const CATEGORY_MAP_FILE = './model/category_maps.json';       // category maps saved from training
 const NUMERIC_STATS_FILE = './model/numeric_stats.json';     // mean/std saved from training
 const CATEGORICAL_COLS = ['route_pair'];                     // columns that must be one-hot encoded

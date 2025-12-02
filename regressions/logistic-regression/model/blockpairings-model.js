@@ -5,7 +5,7 @@ import { parse } from 'csv-parse/sync';  // use /sync subpath officially support
 // -------------------
 // CONFIGURATION
 // -------------------
-const csvFile = '../../data/trips_nov2025.csv';
+const csvFile = '../../data/trips2_rtedir_nov2025.csv';
 const numericColumns = ['on_time_a', 'planned_layover_sec', 'ampeak_a', 'pmpeak_a']; // replace with your columns
 const categoricalColumns = ['route_pair']
 const labelColumn = 'y_on_time_b'; // replace with your binary label column
