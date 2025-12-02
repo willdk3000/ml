@@ -1,11 +1,11 @@
-import * as tf from '@tensorflow/tfjs';
+import * as tf from '@tensorflow/tfjs-node';
 import fs from 'fs';
 import { parse } from 'csv-parse/sync';  // use /sync subpath officially supported
 
 // -------------------
 // CONFIGURATION
 // -------------------
-const csvFile = '../data/trips_nov2025.csv';
+const csvFile = '../../data/trips_nov2025.csv';
 const numericColumns = ['on_time_a', 'planned_layover_sec', 'ampeak_a', 'pmpeak_a']; // replace with your columns
 const categoricalColumns = ['route_pair']
 const labelColumn = 'y_on_time_b'; // replace with your binary label column
@@ -19,6 +19,8 @@ const records = parse(rawCSV, { columns: true, skip_empty_lines: true });
 // -------------------
 // BUILD CATEGORY MAPPINGS
 // -------------------
+
+//Get all categoricalColumns
 const categoryMaps = {};
 for (const col of categoricalColumns) {
     const uniqueValues = [...new Set(records.map(r => r[col]))];
@@ -27,12 +29,15 @@ for (const col of categoricalColumns) {
     categoryMaps[col] = { map, size: uniqueValues.length };
 }
 
+//Encode oneHot categorical ex.: from 8_54 to arrays like [0,0,1]
 function oneHotEncode(col, value) {
     const { map, size } = categoryMaps[col];
     const vec = Array(size).fill(0);
     vec[map[value]] = 1;
     return vec;
 }
+
+fs.writeFileSync('category_maps.json', JSON.stringify(categoryMaps));
 
 // -------------------
 // PREPARE FEATURES AND LABELS
@@ -55,6 +60,7 @@ for (const row of records) {
 
 if (features.length === 0) throw new Error('No valid rows found');
 
+//Prepare tensors for calculations
 const X = tf.tensor2d(features, [features.length, features[0].length]);
 const y = tf.tensor2d(labels, [labels.length, 1]);
 
@@ -73,6 +79,23 @@ if (categoricalColumns.length > 0) {
     X_normalized = tf.concat([numericXNorm, categoricalX], 1);
 }
 
+// Export to file for reuse
+// numericColumns is your array of numeric feature names
+const meanObj = {};
+const stdObj = {};
+numericColumns.forEach((col, i) => {
+    meanObj[col] = mean.arraySync()[i];  // value of column i
+    stdObj[col] = std.arraySync()[i];    // std of column i
+});
+
+fs.writeFileSync('./numeric_stats.json', JSON.stringify({
+    mean: meanObj,
+    std: stdObj
+}));
+
+console.log('Numeric stats saved to numeric_stats.json');
+
+
 // -------------------
 // BUILD MODEL
 // -------------------
@@ -89,7 +112,7 @@ model.compile({ optimizer: tf.train.adam(0.001), loss: 'binaryCrossentropy', met
 // -------------------
 (async () => {
     await model.fit(X_normalized, y, {
-         //iterations = epochs
+        //iterations = epochs
         epochs: 20,
         //batch size = number of samples the gradient is calculated on before moving
         //on to the next iteration
@@ -100,88 +123,67 @@ model.compile({ optimizer: tf.train.adam(0.001), loss: 'binaryCrossentropy', met
         callbacks: { onEpochEnd: (epoch, logs) => console.log(`Epoch ${epoch + 1}: loss=${logs.loss.toFixed(4)}, acc=${logs.acc.toFixed(4)}`) }
     });
 
-    
+
+    // Save the trained model for later use
+    await model.save('file://./blockpairings-model');
+    console.log('Model saved to ./blockpairings-model/');
+
 
     // // -------------------
-    // // PREDICTIONS
+    // // PREDICT MULTIPLE SAMPLES
     // // -------------------
-    // // Test sample must have same number of features
-    // //const testSample = tf.tensor2d([[1, 40, 40, 300, 7, 8]]);
+    // const testNumeric = [
+    //     [1, 300, 1, 0],
+    //     [0, 300, 1, 0],
+    //     [1, 600, 1, 0],
+    //     [0, 600, 1, 0],
+    //     [1, 300, 0, 0],
+    //     [0, 300, 0, 0],
+    //     [1, 600, 0, 0],
+    //     [0, 600, 0, 0],
+    //     [1, 300, 1, 0],
+    //     [0, 300, 1, 0],
+    //     [1, 600, 1, 0],
+    //     [0, 600, 1, 0],
+    //     [1, 300, 0, 0],
+    //     [0, 300, 0, 0],
+    //     [1, 600, 0, 0],
+    //     [0, 600, 0, 0],
+    // ];
 
-    // const testSamples = tf.tensor2d([
-    //     [1, 30, 30, 300, 7, 8],
-    //     [0, 30, 30, 300, 7, 8],
-    //     [1, 30, 30, 600, 7, 8],
-    //     [0, 30, 30, 600, 7, 8],
-    //     [1, 30, 30, 300, 13, 13],
-    //     [0, 30, 30, 300, 13, 13],
-    //     [1, 30, 30, 600, 13, 13],
-    //     [0, 30, 30, 600, 13, 13],
-    // ]);
+    // const testCategoricalValues = [
+    //     ['8_73'],
+    //     ['8_73'],
+    //     ['8_73'],
+    //     ['8_73'],
+    //     ['8_73'],
+    //     ['8_73'],
+    //     ['8_73'],
+    //     ['8_73'],
+    //     ['6_54'],
+    //     ['6_54'],
+    //     ['6_54'],
+    //     ['6_54'],
+    //     ['6_54'],
+    //     ['6_54'],
+    //     ['6_54'],
+    //     ['6_54'],
+    // ];
 
-    // // Normalize using training mean/std
+    // const testNumericTensor = tf.tensor2d(testNumeric).sub(mean).div(std);
+    // const testCategoricalTensor = tf.tensor2d(
+    //     testCategoricalValues.map(vals => {
+    //         let encoded = [];
+    //         categoricalColumns.forEach((col, idx) => {
+    //             encoded = encoded.concat(oneHotEncode(col, vals[idx]));
+    //         });
+    //         return encoded;
+    //     })
+    // );
 
-    // //const testNormalized = testSample.sub(mean).div(std);
-    // const testNormalized = testSamples.sub(mean).div(std);
-
-    // const prediction = model.predict(testNormalized);
-    // prediction.print();
-
-    // -------------------
-    // PREDICT MULTIPLE SAMPLES
-    // -------------------
-    const testNumeric = [
-        [1, 300, 1, 0],
-        [0, 300, 1, 0],
-        [1, 600, 1, 0],
-        [0, 600, 1, 0],
-        [1, 300, 0, 0],
-        [0, 300, 0, 0],
-        [1, 600, 0, 0],
-        [0, 600, 0, 0],
-        [1, 300, 1, 0],
-        [0, 300, 1, 0],
-        [1, 600, 1, 0],
-        [0, 600, 1, 0],
-        [1, 300, 0, 0],
-        [0, 300, 0, 0],
-        [1, 600, 0, 0],
-        [0, 600, 0, 0],
-    ];
-
-    const testCategoricalValues = [
-        ['8_73'],
-        ['8_73'],
-        ['8_73'],
-        ['8_73'],
-        ['8_73'],
-        ['8_73'],
-        ['8_73'],
-        ['8_73'],
-        ['6_54'],
-        ['6_54'],
-        ['6_54'],
-        ['6_54'],
-        ['6_54'],
-        ['6_54'],
-        ['6_54'],
-        ['6_54'],
-    ];
-
-    const testNumericTensor = tf.tensor2d(testNumeric).sub(mean).div(std);
-    const testCategoricalTensor = tf.tensor2d(
-        testCategoricalValues.map(vals => {
-            let encoded = [];
-            categoricalColumns.forEach((col, idx) => {
-                encoded = encoded.concat(oneHotEncode(col, vals[idx]));
-            });
-            return encoded;
-        })
-    );
-
-    const testInput = tf.concat([testNumericTensor, testCategoricalTensor], 1);
-    const predictions = model.predict(testInput);
-    predictions.print();
+    // const testInput = tf.concat([testNumericTensor, testCategoricalTensor], 1);
+    // const predictions = model.predict(testInput);
+    // predictions.print();
 
 
-}) ();
+})();
