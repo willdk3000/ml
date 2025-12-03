@@ -48,7 +48,8 @@ function run() {
 
     // Step 3: Sort by route_pair or probability (your choice)
     //joined.sort((a, b) => a.route_pair.localeCompare(b.route_pair));
-    joined.sort((a, b) => b.count - a.count);
+    //joined.sort((a, b) => b.count - a.count);
+    joined.sort((a, b) => a.prob - b.prob);
 
     // Step 4: Save final merged results
     const outPath = './predictions/routepair_summary.csv';
