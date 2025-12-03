@@ -5,8 +5,8 @@ import { parse } from 'csv-parse/sync';  // use /sync subpath officially support
 // -------------------
 // CONFIGURATION
 // -------------------
-const csvFile = '../../data/trips2_rtedir_nov2025.csv';
-const numericColumns = ['on_time_a', 'planned_layover_sec', 'ampeak_a', 'pmpeak_a']; // replace with your columns
+const csvFile = '../../data-samples/trips_nov2025.csv';
+const numericColumns = ['on_time_a', 'planned_layover_sec', 'planned_dur_a', 'planned_dur_b', 'ampeak_a', 'pmpeak_a']; // replace with your columns
 const categoricalColumns = ['route_pair']
 const labelColumn = 'y_on_time_b'; // replace with your binary label column
 
@@ -127,63 +127,6 @@ model.compile({ optimizer: tf.train.adam(0.001), loss: 'binaryCrossentropy', met
     // Save the trained model for later use
     await model.save('file://./blockpairings-model');
     console.log('Model saved to ./blockpairings-model/');
-
-
-    // // -------------------
-    // // PREDICT MULTIPLE SAMPLES
-    // // -------------------
-    // const testNumeric = [
-    //     [1, 300, 1, 0],
-    //     [0, 300, 1, 0],
-    //     [1, 600, 1, 0],
-    //     [0, 600, 1, 0],
-    //     [1, 300, 0, 0],
-    //     [0, 300, 0, 0],
-    //     [1, 600, 0, 0],
-    //     [0, 600, 0, 0],
-    //     [1, 300, 1, 0],
-    //     [0, 300, 1, 0],
-    //     [1, 600, 1, 0],
-    //     [0, 600, 1, 0],
-    //     [1, 300, 0, 0],
-    //     [0, 300, 0, 0],
-    //     [1, 600, 0, 0],
-    //     [0, 600, 0, 0],
-    // ];
-
-    // const testCategoricalValues = [
-    //     ['8_73'],
-    //     ['8_73'],
-    //     ['8_73'],
-    //     ['8_73'],
-    //     ['8_73'],
-    //     ['8_73'],
-    //     ['8_73'],
-    //     ['8_73'],
-    //     ['6_54'],
-    //     ['6_54'],
-    //     ['6_54'],
-    //     ['6_54'],
-    //     ['6_54'],
-    //     ['6_54'],
-    //     ['6_54'],
-    //     ['6_54'],
-    // ];
-
-    // const testNumericTensor = tf.tensor2d(testNumeric).sub(mean).div(std);
-    // const testCategoricalTensor = tf.tensor2d(
-    //     testCategoricalValues.map(vals => {
-    //         let encoded = [];
-    //         categoricalColumns.forEach((col, idx) => {
-    //             encoded = encoded.concat(oneHotEncode(col, vals[idx]));
-    //         });
-    //         return encoded;
-    //     })
-    // );
-
-    // const testInput = tf.concat([testNumericTensor, testCategoricalTensor], 1);
-    // const predictions = model.predict(testInput);
-    // predictions.print();
 
 
 })();

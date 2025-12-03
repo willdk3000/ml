@@ -7,11 +7,12 @@ WITH base AS (
         block_id,
         trip_id,
         route_id,
+		direction_id,
         firstlast,
         plannedduration,
         realduration,
         on_time_pct::int
-    FROM rtl.tripsreport where date between '2025-11-01' and '2025-11-26'
+    FROM rtl.tripsreport where date between '2025-11-01' and '2025-11-30'
 	AND EXTRACT(DOW FROM date) IN (1,2,3,4,5)
 ),
 ordered AS (
@@ -21,7 +22,7 @@ ordered AS (
         block_id,
         trip_id,
         route_id,
-
+		direction_id,
         -- Convert planned start to seconds
         firstlast[1]::int AS planned_start_sec,
         plannedduration::int AS planned_dur_sec,
@@ -30,6 +31,7 @@ ordered AS (
 
         LEAD(trip_id) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_trip_id,
         LEAD(route_id) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_route_id,
+		LEAD(direction_id) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_direction_id,
         LEAD(firstlast[1]::int) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_planned_start_sec,
         LEAD(plannedduration::int) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_planned_dur_sec,
         LEAD(on_time_pct) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_on_time_pct
@@ -44,6 +46,8 @@ pairs AS (
         -- current trip
         trip_id AS trip_a_id,
         route_id AS route_a,
+		direction_id AS direction_a,
+		
         on_time_pct AS on_time_a,
         planned_start_sec AS planned_start_a,
         planned_dur_sec AS planned_dur_a,
@@ -51,6 +55,7 @@ pairs AS (
         -- next trip
         next_trip_id AS trip_b_id,
         next_route_id AS route_b,
+		next_direction_id AS direction_b,
         next_on_time_pct AS on_time_b,
         next_planned_start_sec AS planned_start_b,
         next_planned_dur_sec AS planned_dur_b,
@@ -75,8 +80,8 @@ SELECT
 	CASE WHEN on_time_b >= 0.85 THEN 1 ELSE 0 END AS y_on_time_b,
 	CASE WHEN on_time_a >= 0.85 THEN 1 ELSE 0 END AS on_time_a,
 
-    --planned_dur_a,
-    --planned_dur_b,
+    planned_dur_a,
+    planned_dur_b,
 
     CASE WHEN planned_layover_sec>0 THEN planned_layover_sec
 	ELSE 0
@@ -94,11 +99,10 @@ SELECT
 	THEN 1 ELSE 0
 	END as pmpeak_a,
 
-    CONCAT(route_a, '_', route_b) AS route_pair
+    CONCAT(route_a, '_', direction_a, '_', route_b, '_', direction_b) AS route_pair
 	
 FROM d 
 WHERE on_time_a IS NOT NULL and on_time_b IS NOT NULL
 AND planned_layover_sec < 900
-
 
 `
