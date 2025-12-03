@@ -5,7 +5,7 @@ import * as tf from '@tensorflow/tfjs-node';
 /**
  * CONFIG — CHANGE THESE
  */
-const MODEL_PATH = './model/blockpairings-model/model.json';  // TFJS saved model
+const MODEL_PATH = './model/blockpairings-model-v2/model.json';  // TFJS saved model
 const INPUT_CSV = './inference-data/predict_latea_30min_trips_pmpeak.csv';         // CSV containing rows to predict
 const CATEGORY_MAP_FILE = './model/category_maps.json';       // category maps saved from training
 const NUMERIC_STATS_FILE = './model/numeric_stats.json';     // mean/std saved from training
