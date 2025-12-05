@@ -29,18 +29,18 @@ const records = parse(rawCSV, { columns: true, skip_empty_lines: true });
 // -------------------
 const categoryMaps = {};
 for (const col of categoricalColumns) {
-    const uniqueValues = [...new Set(records.map(r => r[col]))];
-    const map = {};
-    uniqueValues.forEach((v, i) => { map[v] = i; });
-    categoryMaps[col] = { map, size: uniqueValues.length };
+  const uniqueValues = [...new Set(records.map(r => r[col]))];
+  const map = {};
+  uniqueValues.forEach((v, i) => { map[v] = i; });
+  categoryMaps[col] = { map, size: uniqueValues.length };
 }
 fs.writeFileSync('category_maps.json', JSON.stringify(categoryMaps));
 
 function oneHotEncode(col, value) {
-    const { map, size } = categoryMaps[col];
-    const vec = Array(size).fill(0);
-    vec[map[value]] = 1;
-    return vec;
+  const { map, size } = categoryMaps[col];
+  const vec = Array(size).fill(0);
+  vec[map[value]] = 1;
+  return vec;
 }
 
 // -------------------
@@ -54,8 +54,8 @@ const std = variance.sqrt();
 const meanObj = {};
 const stdObj = {};
 numericColumns.forEach((col, i) => {
-    meanObj[col] = mean.arraySync()[i];
-    stdObj[col] = std.arraySync()[i];
+  meanObj[col] = mean.arraySync()[i];
+  stdObj[col] = std.arraySync()[i];
 });
 fs.writeFileSync('./numeric_stats.json', JSON.stringify({ mean: meanObj, std: stdObj }));
 
@@ -67,23 +67,23 @@ std.dispose();
 // CREATE DATASET GENERATOR
 // -------------------
 function* dataGenerator() {
-    for (const row of records) {
-        const numericValues = numericColumns.map(c => parseFloat(row[c]));
-        if (numericValues.some(v => !isFinite(v))) continue;
+  for (const row of records) {
+    const numericValues = numericColumns.map(c => parseFloat(row[c]));
+    if (numericValues.some(v => !isFinite(v))) continue;
 
-        // Normalize numeric
-        const numericNorm = numericValues.map((v, i) => (v - meanObj[numericColumns[i]]) / stdObj[numericColumns[i]]);
+    // Normalize numeric
+    const numericNorm = numericValues.map((v, i) => (v - meanObj[numericColumns[i]]) / stdObj[numericColumns[i]]);
 
-        // One-hot encode categorical
-        let catValues = [];
-        for (const col of categoricalColumns) {
-            catValues = catValues.concat(oneHotEncode(col, row[col]));
-        }
-
-        const xs = numericNorm.concat(catValues);
-        const ys = [parseFloat(row[labelColumn])];
-        yield { xs, ys };
+    // One-hot encode categorical
+    let catValues = [];
+    for (const col of categoricalColumns) {
+      catValues = catValues.concat(oneHotEncode(col, row[col]));
     }
+
+    const xs = numericNorm.concat(catValues);
+    const ys = [parseFloat(row[labelColumn])];
+    yield { xs, ys };
+  }
 }
 
 // -------------------
@@ -98,21 +98,34 @@ const inputDim = numericColumns.length + categoricalColumns.reduce((sum, c) => s
 const model = tf.sequential();
 model.add(tf.layers.dense({ units: 1, inputShape: [inputDim], activation: 'sigmoid' }));
 
-//0.001 is learning rate
-model.compile({ optimizer: tf.train.adam(0.001), loss: 'binaryCrossentropy', metrics: ['accuracy'] });
+//0.001 is learning rate using Adam
+model.compile({
+  optimizer: tf.train.adam(0.001),
+  loss: 'binaryCrossentropy',
+  metrics: ['accuracy']
+});
+
+// Using SGD with a learning rate of 0.01
+// model.compile({
+//     optimizer: tf.train.sgd(0.01),  // <-- SGD optimizer
+//     loss: 'binaryCrossentropy',
+//     metrics: ['accuracy']
+// });
+
+
 
 // -------------------
 // TRAIN MODEL
 // -------------------
 (async () => {
-    await model.fitDataset(dataset, {
-        epochs: EPOCHS,
-        callbacks: {
-            onEpochEnd: (epoch, logs) =>
-                console.log(`Epoch ${epoch + 1}: loss=${logs.loss.toFixed(4)}, acc=${logs.acc.toFixed(4)}`)
-        }
-    });
+  await model.fitDataset(dataset, {
+    epochs: EPOCHS,
+    callbacks: {
+      onEpochEnd: (epoch, logs) =>
+        console.log(`Epoch ${epoch + 1}: loss=${logs.loss.toFixed(4)}, acc=${logs.acc.toFixed(4)}`)
+    }
+  });
 
-    await model.save('file://./blockpairings-model-v2');
-    console.log('Model saved to ./blockpairings-model-v2/');
+  await model.save('file://./blockpairings-model-v2');
+  console.log('Model saved to ./blockpairings-model-v2/');
 })();
