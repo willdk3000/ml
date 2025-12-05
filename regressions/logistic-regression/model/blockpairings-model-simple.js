@@ -3,6 +3,13 @@ import fs from 'fs';
 import { parse } from 'csv-parse/sync';  // use /sync subpath officially supported
 
 // -------------------
+// V1 - Simple
+// -------------------
+
+// This version can only handle small data sample volumes (50k)
+
+
+// -------------------
 // CONFIGURATION
 // -------------------
 const csvFile = '../../data-samples/trips_nov2025.csv';

@@ -3,6 +3,12 @@ import fs from 'fs';
 import { parse } from 'csv-parse/sync';
 
 // -------------------
+// V2
+// -------------------
+
+// This version can handle millions of rows
+
+// -------------------
 // CONFIGURATION
 // -------------------
 const csvFile = '../../data-samples/trips_oct_nov2025.csv';
@@ -91,6 +97,8 @@ const dataset = tf.data.generator(dataGenerator).batch(BATCH_SIZE);
 const inputDim = numericColumns.length + categoricalColumns.reduce((sum, c) => sum + categoryMaps[c].size, 0);
 const model = tf.sequential();
 model.add(tf.layers.dense({ units: 1, inputShape: [inputDim], activation: 'sigmoid' }));
+
+//0.001 is learning rate
 model.compile({ optimizer: tf.train.adam(0.001), loss: 'binaryCrossentropy', metrics: ['accuracy'] });
 
 // -------------------
