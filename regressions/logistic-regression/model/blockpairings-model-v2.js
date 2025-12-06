@@ -89,7 +89,10 @@ function* dataGenerator() {
 // -------------------
 // CREATE TF.DATA DATASET
 // -------------------
-const dataset = tf.data.generator(dataGenerator).batch(BATCH_SIZE);
+const dataset = tf.data
+  .generator(dataGenerator)
+  .shuffle(20000)
+  .batch(BATCH_SIZE);
 
 // -------------------
 // BUILD MODEL

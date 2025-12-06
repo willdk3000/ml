@@ -112,7 +112,7 @@ model.add(tf.layers.dense({
     inputShape: [X_normalized.shape[1]],
     activation: 'sigmoid'
 }));
-model.compile({ optimizer: tf.train.adam(0.001), loss: 'binaryCrossentropy', metrics: ['accuracy'] });
+model.compile({ optimizer: tf.train.sgd(0.01), loss: 'binaryCrossentropy', metrics: ['accuracy'] });
 
 // -------------------
 // TRAIN MODEL
