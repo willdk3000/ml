@@ -7,8 +7,8 @@ import * as tf from '@tensorflow/tfjs-node';
  */
 const MODEL_PATH = './model/blockpairings-model-v2/model.json';  // TFJS saved model
 const INPUT_CSV = './inference-data/predict_latea_30min_trips_pmpeak.csv';         // CSV containing rows to predict
-const CATEGORY_MAP_FILE = './model/category_maps.json';       // category maps saved from training
-const NUMERIC_STATS_FILE = './model/numeric_stats.json';     // mean/std saved from training
+const CATEGORY_MAP_FILE = './model/blockpairings-model-v2/category_maps.json';       // category maps saved from training
+const NUMERIC_STATS_FILE = './model//blockpairings-model-v2/numeric_stats.json';     // mean/std saved from training
 const CATEGORICAL_COLS = ['route_pair'];                     // columns that must be one-hot encoded
 const THRESHOLD = 0.5;                                       // numeric output > threshold => class 1
 const NUMERIC_COLUMNS = ['on_time_a', 'planned_layover_sec', 'planned_dur_a', 'planned_dur_b', 'ampeak_a', 'pmpeak_a']; // numeric features

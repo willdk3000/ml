@@ -34,7 +34,7 @@ for (const col of categoricalColumns) {
   uniqueValues.forEach((v, i) => { map[v] = i; });
   categoryMaps[col] = { map, size: uniqueValues.length };
 }
-fs.writeFileSync('category_maps.json', JSON.stringify(categoryMaps));
+fs.writeFileSync('./blockpairings-model-v2/category_maps.json', JSON.stringify(categoryMaps));
 
 function oneHotEncode(col, value) {
   const { map, size } = categoryMaps[col];
@@ -57,7 +57,7 @@ numericColumns.forEach((col, i) => {
   meanObj[col] = mean.arraySync()[i];
   stdObj[col] = std.arraySync()[i];
 });
-fs.writeFileSync('./numeric_stats.json', JSON.stringify({ mean: meanObj, std: stdObj }));
+fs.writeFileSync('./blockpairings-model-v2/numeric_stats.json', JSON.stringify({ mean: meanObj, std: stdObj }));
 
 numericTensor.dispose();
 variance.dispose();
