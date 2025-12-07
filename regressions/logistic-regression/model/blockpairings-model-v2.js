@@ -11,8 +11,8 @@ import { parse } from 'csv-parse/sync';
 // -------------------
 // CONFIGURATION
 // -------------------
-const csvFile = '../../data-samples/trips_oct_nov2025.csv';
-const numericColumns = ['on_time_a', 'planned_layover_sec', 'planned_dur_a', 'planned_dur_b', 'ampeak_a', 'pmpeak_a'];
+const csvFile = '../../data-samples/trips_oct_nov2025-var.csv';
+const numericColumns = ['on_time_a', 'planned_layover_sec', 'planned_dur_b', 'avg_var_b', 'ampeak_a', 'pmpeak_a'];
 const categoricalColumns = ['route_pair'];
 const labelColumn = 'y_on_time_b';
 const BATCH_SIZE = 1024;
@@ -35,6 +35,10 @@ for (const col of categoricalColumns) {
   categoryMaps[col] = { map, size: uniqueValues.length };
 }
 fs.writeFileSync('./blockpairings-model-v2/category_maps.json', JSON.stringify(categoryMaps));
+
+// ------------------
+// CREATE ONE HOT ENCODE FUNCTION
+// ------------------
 
 function oneHotEncode(col, value) {
   const { map, size } = categoryMaps[col];
@@ -89,6 +93,9 @@ function* dataGenerator() {
 // -------------------
 // CREATE TF.DATA DATASET
 // -------------------
+
+//Shuffle 20 000 means the model will keep UP TO 20 000 rows to shuffle
+//If data left is less it will use less
 const dataset = tf.data
   .generator(dataGenerator)
   .shuffle(20000)
@@ -99,7 +106,13 @@ const dataset = tf.data
 // -------------------
 const inputDim = numericColumns.length + categoricalColumns.reduce((sum, c) => sum + categoryMaps[c].size, 0);
 const model = tf.sequential();
-model.add(tf.layers.dense({ units: 1, inputShape: [inputDim], activation: 'sigmoid' }));
+model.add(tf.layers
+  .dense({
+    units: 1,
+    inputShape: [inputDim],
+    activation: 'sigmoid'
+  })
+);
 
 //0.001 is learning rate using Adam
 model.compile({

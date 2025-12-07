@@ -6,7 +6,7 @@ import { parse } from 'csv-parse/sync';
  * 1) Sample data containing route_pair (you want to analyze these)
  * 2) Prediction output file created earlier
  */
-const SAMPLE_CSV = '../data-samples/trips_nov2025.csv';
+const SAMPLE_CSV = '../data-samples/trips_oct_nov2025-var.csv';
 const PREDICTIONS_CSV = './predictions/prediction_results.csv';
 
 
