@@ -15,7 +15,7 @@ WITH base AS (
         realduration,
         on_time_pct::int
     FROM rtl.tripsreport where date between '2025-11-01' and '2025-11-30'
-	AND EXTRACT(DOW FROM date) IN (1,2,3,4,5)
+	AND EXTRACT(DOW FROM date) IN (1,2,3,4,5) AND (service_id=4 OR service_id=8)
 ),
 ordered AS (
     SELECT

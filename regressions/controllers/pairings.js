@@ -15,7 +15,7 @@ WITH base AS (
         realduration,
         on_time_pct::int
     FROM rtl.tripsreport where date between '2025-11-01' and '2025-11-30'
-	AND EXTRACT(DOW FROM date) IN (1,2,3,4,5)
+	AND EXTRACT(DOW FROM date) IN (1,2,3,4,5) AND (service_id=4 OR service_id=8)
 ),
 ordered AS (
     SELECT
@@ -123,7 +123,7 @@ WITH orig AS (
         trip_id,
         route_id,
 		direction_id,
-        firstlast,
+        firstlast[1] as planstart,
         plannedduration,
         realduration,
         on_time_pct::int
@@ -132,44 +132,46 @@ WITH orig AS (
 ),
 var as (
 	SELECT
-        date, trip_id, (realduration-plannedduration)::integer as var
+    date, route_id, direction_id, firstlast[1] as planstart, (realduration-plannedduration)::integer as var
     FROM rtl.tripsreport where date between '2025-10-01' and '2025-11-30'
 	AND EXTRACT(DOW FROM date) IN (1,2,3,4,5) AND (service_id=4 OR service_id=8)
 	AND (realduration-plannedduration) IS NOT NULL
 ),
 tripvar as (
-select trip_id, avg(var)::integer as avg_var
-from var
-group by trip_id
+	select route_id, direction_id, planstart , avg(var)::integer as avg_var
+	from var
+	group by route_id, direction_id, planstart
 ),
 base as (
-SELECT orig.*,
-tripvar.avg_var
-FROM orig
-LEFT JOIN tripvar ON tripvar.trip_id = orig.trip_id
+	SELECT orig.*,
+	tripvar.avg_var
+	FROM orig
+	LEFT JOIN tripvar ON tripvar.route_id = orig.route_id 
+	AND tripvar.direction_id=orig.direction_id 
+	AND tripvar.planstart = orig.planstart
 ),
 ordered AS (
     SELECT
         date,
         block_key,
         block_id,
-        trip_id,
         route_id,
 		direction_id,
+		planstart,
 		avg_var,
         -- Convert planned start to seconds
-        firstlast[1]::int AS planned_start_sec,
+        --firstlast[1]::int AS planned_start_sec,
         plannedduration::int AS planned_dur_sec,
         realduration::int AS real_dur_sec,
         on_time_pct::int,
 
-        LEAD(base.trip_id) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_trip_id,
-        LEAD(route_id) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_route_id,
-		LEAD(direction_id) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_direction_id,
-        LEAD(firstlast[1]::int) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_planned_start_sec,
-        LEAD(plannedduration::int) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_planned_dur_sec,
-        LEAD(on_time_pct) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_on_time_pct,
-		LEAD(avg_var) OVER (PARTITION BY date, block_key ORDER BY firstlast[1]::int) AS next_avg_var
+        LEAD(route_id) OVER (PARTITION BY date, block_key ORDER BY planstart::int) AS next_route_id,
+		LEAD(direction_id) OVER (PARTITION BY date, block_key ORDER BY planstart::int) AS next_direction_id,
+        LEAD(planstart::int) OVER (PARTITION BY date, block_key ORDER BY planstart::int) AS next_planned_start_sec,
+        LEAD(plannedduration::int) OVER (PARTITION BY date, block_key ORDER BY planstart::int) AS next_planned_dur_sec,
+        LEAD(on_time_pct) OVER (PARTITION BY date, block_key ORDER BY planstart::int) AS next_on_time_pct,
+		LEAD(planstart) OVER (PARTITION BY date, block_key ORDER BY planstart::int) AS next_planstart,
+		LEAD(avg_var) OVER (PARTITION BY date, block_key ORDER BY planstart::int) AS next_avg_var
     FROM base
 ),
 pairs AS (
@@ -179,38 +181,38 @@ pairs AS (
         block_id,
 
         -- current trip
-        trip_id AS trip_a_id,
+        --trip_id AS trip_a_id,
         route_id AS route_a,
 		direction_id AS direction_a,
+		planstart::integer AS planstart_a,
 		
         on_time_pct AS on_time_a,
-        planned_start_sec AS planned_start_a,
+        --planned_start_sec AS planned_start_a,
         planned_dur_sec AS planned_dur_a,
 		avg_var as avg_var_a,
 
         -- next trip
-        next_trip_id AS trip_b_id,
+        --next_trip_id AS trip_b_id,
         next_route_id AS route_b,
 		next_direction_id AS direction_b,
         next_on_time_pct AS on_time_b,
-        next_planned_start_sec AS planned_start_b,
+        next_planstart::integer AS planstart_b,
         next_planned_dur_sec AS planned_dur_b,
 		next_avg_var AS avg_var_b,
 
         -- layover in seconds
         CASE
             WHEN next_planned_start_sec IS NOT NULL THEN
-                next_planned_start_sec - (planned_start_sec + planned_dur_sec)
+                next_planned_start_sec - (planstart::integer + planned_dur_sec)
         END AS planned_layover_sec,
-		planned_start_sec,
+		planstart,
 		next_planned_start_sec
     FROM ordered
 ),
 d AS (
 SELECT *
-FROM pairs
-WHERE trip_b_id IS NOT NULL
-ORDER BY date, block_key, planned_start_a
+	FROM pairs
+	ORDER BY date, block_key, planstart
 )
 SELECT
 
@@ -219,6 +221,9 @@ SELECT
 
     planned_dur_a,
     planned_dur_b,
+
+	planstart_a,
+	planstart_b,
 
 	avg_var_a,
 	avg_var_b,
@@ -231,11 +236,11 @@ SELECT
 	--planned_start_sec/3600 as start_hour_a,
 	--next_planned_start_sec/3660 as start_hour_b,
 
-	CASE WHEN planned_start_sec>21600 AND planned_start_sec<=32400
+	CASE WHEN planstart_a>21600 AND planstart_a<=32400
 	THEN 1 ELSE 0
 	END as ampeak_a,
 
-	CASE WHEN planned_start_sec>55800 AND planned_start_sec<=66600
+	CASE WHEN planstart_a>55800 AND planstart_a<=66600
 	THEN 1 ELSE 0
 	END as pmpeak_a,
 
