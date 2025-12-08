@@ -11,8 +11,8 @@ import { parse } from 'csv-parse/sync';
 // -------------------
 // CONFIGURATION
 // -------------------
-const csvFile = '../../data-samples/trips_oct_nov2025-var.csv';
-const numericColumns = ['on_time_a', 'planned_layover_sec', 'planned_dur_b', 'avg_var_b', 'ampeak_a', 'pmpeak_a'];
+const csvFile = '../../data-samples/trips_oct_nov2025-var-p85.csv';
+const numericColumns = ['on_time_a', 'planned_layover_sec', 'p85_pct_b', 'planned_dur_b', 'range7525_b', 'ampeak_a', 'pmpeak_a'];
 const categoricalColumns = ['route_pair'];
 const labelColumn = 'y_on_time_b';
 const BATCH_SIZE = 1024;
