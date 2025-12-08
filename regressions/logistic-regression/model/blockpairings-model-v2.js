@@ -7,6 +7,7 @@ import { parse } from 'csv-parse/sync';
 // -------------------
 
 // This version can handle millions of rows
+// Uses a generator instead of storing all features in memory
 
 // -------------------
 // CONFIGURATION
