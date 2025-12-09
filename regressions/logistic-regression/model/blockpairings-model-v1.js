@@ -38,6 +38,7 @@ for (const col of categoricalColumns) {
 
 //Encode oneHot categorical ex.: from 8_54 to arrays like [0,0,1]
 function oneHotEncode(col, value) {
+    //like saying const map = categoryMaps[col].map
     const { map, size } = categoryMaps[col];
     const vec = Array(size).fill(0);
     vec[map[value]] = 1;
