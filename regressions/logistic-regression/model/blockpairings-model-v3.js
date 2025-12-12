@@ -5,11 +5,11 @@ import { parse } from 'csv-parse/sync';
 // -------------------
 // CONFIGURATION
 // -------------------
-const csvFile = '../../data-samples/trips_oct_nov2025_lstm.csv';
-const numericColumns = ['planned_layover', 'plannedduration', 'p85_pct_b', 'range7525_b', 'route_id', 'direction_id', 'ampeak_a', 'pmpeak_a'];
+const csvFile = '../../data-samples/trips_oct_nov2025_lstm-2.csv';
+const numericColumns = ['planned_layover', 'plannedduration', 'p85_pct', 'range7525', 'route_id', 'direction_id', 'ampeak', 'pmpeak', 'prev_on_time_class'];
 const categoricalColumns = []; // leave empty [] if no categorical features
 const labelColumn = 'on_time_class';
-const MAX_TIMESTEPS = 25; // max trips per block
+const MAX_TIMESTEPS = 5; // max trips per block
 const BATCH_SIZE = 1024;
 const EPOCHS = 20;
 
@@ -58,7 +58,7 @@ const meanObj = {};
 const stdObj = {};
 numericColumns.forEach((col, i) => {
   meanObj[col] = mean.arraySync()[i];
-  stdObj[col] = std.arraySync()[i];
+  stdObj[col] = std.arraySync()[i] || 1; // avoid division by zero
 });
 fs.writeFileSync('./numeric_stats.json', JSON.stringify({ mean: meanObj, std: stdObj }));
 
@@ -67,10 +67,10 @@ variance.dispose();
 std.dispose();
 
 // -------------------
-// CREATE SEQUENCE GENERATOR
+// SEQUENCE GENERATOR
 // -------------------
 function* sequenceGenerator() {
-  // group trips by block
+  // Group trips by block
   const blocks = {};
   for (const row of records) {
     const block = row.block_key;
@@ -86,32 +86,41 @@ function* sequenceGenerator() {
     for (let i = 0; i < MAX_TIMESTEPS; i++) {
       if (i < trips.length) {
         const row = trips[i];
+
+        // Numeric values
         const numericValues = numericColumns.map(c => parseFloat(row[c]));
-        const numericNorm = numericValues.map((v, j) => (v - meanObj[numericColumns[j]]) / stdObj[numericColumns[j]]);
+        const numericNorm = numericValues.map((v, j) => {
+          const s = stdObj[numericColumns[j]] || 1;
+          const val = (v - meanObj[numericColumns[j]]) / s;
+          return Math.max(-5, Math.min(5, val)); // clip to [-5,5]
+        });
+
+        // Categorical values
         let catValues = [];
         for (const col of categoricalColumns) {
           catValues = catValues.concat(oneHotEncode(col, row[col]));
         }
+
         xsSeq.push(numericNorm.concat(catValues));
         ysSeq.push([parseFloat(row[labelColumn])]);
       } else {
+        // padded timestep
         const inputDim = numericColumns.length + categoricalColumns.reduce((sum, c) => sum + (categoryMaps[c]?.size || 0), 0);
         xsSeq.push(new Array(inputDim).fill(0));
         ysSeq.push([0]);
       }
     }
 
-    // yield tensors instead of arrays
+    // yield tensors
     yield { 
-      xs: tf.tensor2d(xsSeq),    // shape [25, features]
-      ys: tf.tensor2d(ysSeq)     // shape [25, 1]
+      xs: tf.tensor2d(xsSeq),   // shape [MAX_TIMESTEPS, features]
+      ys: tf.tensor2d(ysSeq)    // shape [MAX_TIMESTEPS, 1]
     };
   }
 }
 
-
 // -------------------
-// CREATE TF.DATA DATASET
+// DATASET
 // -------------------
 const inputDim = numericColumns.length + categoricalColumns.reduce((sum, c) => sum + (categoryMaps[c]?.size || 0), 0);
 
@@ -124,25 +133,12 @@ const dataset = tf.data
 // BUILD LSTM MODEL
 // -------------------
 const model = tf.sequential();
-
-// Mask timesteps with all zeros
 model.add(tf.layers.masking({ maskValue: 0, inputShape: [MAX_TIMESTEPS, inputDim] }));
-
-// LSTM
-model.add(tf.layers.lstm({
-  units: 25,
-  activation: 'tanh',
-  returnSequences: true
-}));
-
-// Output per timestep
-model.add(tf.layers.dense({
-  units: 1,
-  activation: 'sigmoid'
-}));
+model.add(tf.layers.lstm({ units: 16, activation: 'tanh', returnSequences: true }));
+model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
 
 model.compile({
-  optimizer: tf.train.adam(0.001),
+  optimizer: tf.train.adam(0.0001), // lower learning rate for stability
   loss: 'binaryCrossentropy',
   metrics: ['accuracy']
 });

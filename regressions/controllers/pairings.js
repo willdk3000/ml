@@ -163,6 +163,7 @@ AND planned_layover_sec < 900
 
 
 
+
 //V3 LSTM
 `
 WITH orig AS (
@@ -171,11 +172,13 @@ WITH orig AS (
 		service_id,
         -- Extract the real block identifier before the underscore
         (regexp_split_to_array(block_id, '_'))[1] AS block_key,
-		(regexp_split_to_array(block_id, '_'))[2] AS tripno,
+		(regexp_split_to_array(block_id, '_'))[2] AS tripcode,
+		ROW_NUMBER() OVER (PARTITION BY date, (regexp_split_to_array(block_id, '_'))[1] ORDER BY firstlast[1]) AS trip,
         block_id,
         trip_id,
         route_id,
 		direction_id,
+		--timestamp_to_seconds(realstarttime) as realstart,
         firstlast[1]::integer as planstart,
         plannedduration,
         realduration,
@@ -203,15 +206,20 @@ tripvar as (
 raw as (
 	SELECT 
 	--orig.*,
+	orig.date,
 	orig.block_key,
-	orig.tripno::integer,
+	orig.trip::integer,
 	orig.planstart,
 	orig.plannedduration,
+	--orig.realstart,
 	orig.realduration,
 	orig.on_time_pct,
-	concat(orig.route_id, '_', orig.direction_id) as routedir,
+	orig.route_id,
+	orig.direction_id,
+	--concat(orig.route_id, '_', orig.direction_id) as routedir,
 	--tripvar.avg_var,
-	tripvar.p85_realduration,
+	--tripvar.p85_realduration as p85_realduration,
+	(tripvar.p85_realduration/orig.plannedduration) as p85_pct,
 	(p75_realduration-p25_realduration) as range7525,
 	CASE WHEN on_time_pct >= 85 THEN 1 ELSE 0 END AS on_time_class,
 	
@@ -229,40 +237,93 @@ raw as (
 	AND tripvar.planstart = orig.planstart
 	WHERE realduration IS NOT NULL
 ),
+numbered as (
+    SELECT
+        date,
+        block_key,
+        trip,
+        planstart,
+        plannedduration,
+        realduration,
+        p85_pct,
+        range7525,
+        on_time_class,
+        ampeak,
+        pmpeak,
+		route_id,
+		direction_id,
+        --routedir,
+
+        ROW_NUMBER() OVER (
+            PARTITION BY date, block_key
+            ORDER BY trip
+        ) AS rn
+    FROM raw
+),
+
+grouped AS (
+    SELECT
+        *,
+        -- group_index: 1 for trips 1–5, 2 for trips 6–10, etc.
+        CEIL(rn / 5.0) AS group_index
+    FROM numbered
+),
+
 max_trip AS (
-    -- Find the maximum trip number across all blocks
-    SELECT MAX(tripno)::integer AS max_trip
-    FROM raw
+    SELECT
+        date,
+        block_key,
+        group_index,
+        MAX(rn) - ( (group_index - 1) * 5 ) AS trips_in_group
+    FROM grouped
+    GROUP BY date, block_key, group_index
 ),
-blocks AS (
-    SELECT DISTINCT block_key
-    FROM raw
-),
+
 all_combinations AS (
-    SELECT 
-        b.block_key,
-        gs.trip
-    FROM blocks b
-    CROSS JOIN LATERAL
-        generate_series(1, (SELECT max_trip FROM max_trip)) AS gs(trip)
-)
-SELECT 
+    SELECT
+        m.date,
+        m.block_key,
+        m.group_index,
+        gs.trip_in_group
+    FROM max_trip m
+    CROSS JOIN LATERAL generate_series(1, 5) AS gs(trip_in_group)  -- always 5 slots
+),
+res AS (
+SELECT
+    ac.date,
     ac.block_key,
-    ac.trip,
-	COALESCE(planstart, 0) as planstart,
-	COALESCE(plannedduration, 0) as plannedduration,
-	COALESCE(realduration, 0) as realduration,
-    COALESCE(on_time_pct, 0) as on_time_pct,
-	COALESCE(p85_realduration, 0) as p85_realduration,
-	COALESCE(range7525, 0) as range7525,
-	COALESCE(on_time_class, 0) as on_time_class,
-	COALESCE(ampeak, 0) as ampeak,
-	COALESCE(pmpeak, 0) as pmpeak,
-	routedir
+    ac.group_index AS new_block_key,
+    ac.trip_in_group AS trip_within_group,
+
+    COALESCE(g.planstart, 0) AS planstart,
+    COALESCE(g.plannedduration, 0) AS plannedduration,
+    COALESCE(g.p85_pct, 0) AS p85_pct,
+    COALESCE(g.realduration, 0) AS realduration,
+    COALESCE(g.on_time_class, 0) AS on_time_pct,
+    COALESCE(g.range7525, 0) AS range7525,
+    COALESCE(g.on_time_class, 0) AS on_time_class,
+    COALESCE(g.ampeak, 0) AS ampeak,
+    COALESCE(g.pmpeak, 0) AS pmpeak,
+	COALESCE(g.route_id::integer, 0) as route_id,
+	COALESCE(g.direction_id, 0) as direction_id,
+	COALESCE(LAG(planstart+plannedduration) OVER (PARTITION BY ac.date, ac.block_key ORDER BY planstart),0) AS prev_plan_arrival
+
+    --COALESCE(NULLIF(g.routedir, ''), '0') AS routedir
+
 FROM all_combinations ac
-LEFT JOIN raw tr
-    ON ac.block_key = tr.block_key
-    AND ac.trip = tr.tripno
-ORDER BY ac.block_key, ac.trip;
+LEFT JOIN grouped g
+    ON ac.date = g.date
+    AND ac.block_key = g.block_key
+    AND ac.group_index = g.group_index
+    AND ac.trip_in_group = (g.rn - ( (g.group_index - 1) * 5 ))
+
+ORDER BY ac.date, ac.block_key, ac.group_index, ac.trip_in_group
+)
+SELECT res.*,
+CASE
+	WHEN planstart-prev_plan_arrival > 900 OR planstart-prev_plan_arrival< 0 THEN 0
+	ELSE planstart-prev_plan_arrival
+END as planned_layover
+FROM res
 
 `
