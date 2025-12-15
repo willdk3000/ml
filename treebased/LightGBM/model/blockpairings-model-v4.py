@@ -18,9 +18,9 @@ from sklearn.metrics import roc_auc_score, accuracy_score, log_loss
 # -----------------------
 # CONFIGURATION
 # -----------------------
-CSV_FILE = "../../data-samples/trips_oct_nov2025-lstm-2.csv"
-NUMERIC_COLUMNS = ['on_time_a', 'planned_layover_sec', 'p85_pct_b', 'planned_dur_b', 'range7525_b', 'ampeak_a', 'pmpeak_a', 'route_id', 'direction_id', 'new_block_key']
-CATEGORICAL_COLUMNS = []
+CSV_FILE = "../../data-samples/trips_oct_nov2025-var-p85.csv"
+NUMERIC_COLUMNS = ['on_time_a', 'planned_layover_sec', 'p85_pct_b', 'planned_dur_b', 'range7525_b', 'ampeak_a', 'pmpeak_a']
+CATEGORICAL_COLUMNS = ['route_pair']
 LABEL_COLUMN = 'y_on_time_b'
 
 TEST_SIZE = 0.2
